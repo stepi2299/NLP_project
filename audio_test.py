@@ -44,17 +44,19 @@ dict_to_df = {
 
 }
 
-
 for dialog_nr, utt_nr, sentence in zip(csv_file["Dialogue_ID"], csv_file["Utterance_ID"], csv_file["Utterance"]):
-    audio_file = os.path.join(audio_folder, f"dia{dialog_nr}_utt{utt_nr}.wav")
-    audio = sr.AudioFile(audio_file)
-    with audio as source:
-        audio = r.record(source)  # reading entire audio file
-    heard_text = google_rec(audio)
-    dict_to_df["origin"].append(sentence)
-    dict_to_df["heard"].append(heard_text)
-    dict_to_df["identical"].append(heard_text == sentence)
-    dict_to_df["read"].append(False if heard_text is None else True)
+    try:
+        audio_file = os.path.join(audio_folder, f"dia{dialog_nr}_utt{utt_nr}.wav")
+        audio = sr.AudioFile(audio_file)
+        with audio as source:
+            audio = r.record(source)  # reading entire audio file
+        heard_text = google_rec(audio)
+        dict_to_df["origin"].append(sentence)
+        dict_to_df["heard"].append(heard_text)
+        dict_to_df["identical"].append(heard_text == sentence)
+        dict_to_df["read"].append(False if heard_text is None else True)
+    except Exception as e:
+        print("Sth, went wrong", e)
 
 new_df = pd.DataFrame(dict_to_df)
 new_df.to_csv("/home/stepi2299/repo/MELD.Raw/analyze.csv")
