@@ -1,3 +1,7 @@
 SpeechRecognition==3.10.*
 moviepy==1.0.3
-pandas==2.0.0
+pandas==2.0.*
+pocketsphinx==5.0.*
+pytest==7.3.*
+torch==2.0.*
+vosk==0.3.*
