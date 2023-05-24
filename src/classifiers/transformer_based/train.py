@@ -14,11 +14,13 @@ from utils import create_dataset, create_data_loader
 
 RANDOM_SEED = 42
 
+DATA_PATH = "'../../../data/meld.csv'"
+
 # data
 SAMPLE = 1000
 X_LABEL = 'Utterance'
 Y_LABEL = 'Sentiment'
-Y_CLASSES = ['negative', 'positive']
+Y_CLASSES = ['negative', 'positive', "neutral"]
 
 # model
 MODEL_NAME = 'bert-base-uncased'
@@ -27,7 +29,7 @@ DROPOUT_PROB = 0.3
 # training
 EPOCHS = 4
 BATCH_SIZE = 16
-MAX_LENGTH = 128
+MAX_LENGTH = 44
 
 
 def train(model: nn.Module, data_loader: DataLoader, loss_fn, optim, dev: torch.device, sched, n_samples: int):
@@ -50,7 +52,8 @@ def train(model: nn.Module, data_loader: DataLoader, loss_fn, optim, dev: torch.
         )
 
         _, predictions = torch.max(outputs, dim=1)
-        correct_predictions += sum(torch.eq(predictions, targets))
+        _, correct = torch.max(targets, dim=1)
+        correct_predictions += sum(torch.eq(predictions, correct))
 
         loss = loss_fn(outputs, targets)
         losses.append(loss.item())
@@ -88,7 +91,8 @@ def evaluate(model: CustomBertClassifier, data_loader: DataLoader, loss_fn, dev:
             )
 
             _, predictions = torch.max(outputs, dim=1)
-            correct_predictions += sum(torch.eq(predictions, targets))
+            _, correct = torch.max(targets, dim=1)
+            correct_predictions += sum(torch.eq(predictions, correct))
 
             loss = loss_fn(outputs, targets)
             losses.append(loss.item())
@@ -97,19 +101,11 @@ def evaluate(model: CustomBertClassifier, data_loader: DataLoader, loss_fn, dev:
 
 
 # data preparation
-df: pd.DataFrame = pd.read_csv('data/meld.csv')
-df = df.loc[df[Y_LABEL].isin(Y_CLASSES)].reset_index(drop=True)
-df[Y_LABEL] = df[Y_LABEL].replace(Y_CLASSES[0], 0)
-df[Y_LABEL] = df[Y_LABEL].replace(Y_CLASSES[1], 1)
-df[Y_LABEL] = pd.to_numeric(df[Y_LABEL])
+df: pd.DataFrame = pd.read_csv(DATA_PATH)
 
 # limit dataframe length
 if SAMPLE:
     df = df.head(SAMPLE)
-
-df_train: pd.DataFrame
-df_test: pd.DataFrame
-df_val: pd.DataFrame
 
 # split: 80%, 10%, 10%
 df_train, df_test = train_test_split(df, test_size=0.2, random_state=RANDOM_SEED)
@@ -148,6 +144,7 @@ scheduler = get_linear_schedule_with_warmup(
 
 loss_function = nn.CrossEntropyLoss().to(device)
 best_acc: float = 0
+
 
 for epoch_i in range(EPOCHS):
     print("")
