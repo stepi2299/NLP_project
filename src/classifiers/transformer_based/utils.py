@@ -2,11 +2,15 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler
+from sklearn.preprocessing import OneHotEncoder
 
 
 def create_dataset(df: pd.DataFrame, tokenizer, x_label: str, y_label: str, max_length: int):
     x_list: np.ndarray = df[x_label].to_numpy()
-    y_list: np.ndarray = df[y_label].to_numpy()
+    ohe = OneHotEncoder()
+    codes = df[y_label].to_numpy()
+    codes = np.expand_dims(codes, axis=1)
+    y_list: np.ndarray = ohe.fit_transform(codes).toarray()
 
     input_ids = []
     attention_masks = []
