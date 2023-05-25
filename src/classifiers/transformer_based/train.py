@@ -5,16 +5,16 @@ from transformers import BertTokenizer, BertModel, get_linear_schedule_with_warm
 import torch
 from torch import nn
 from torch.optim import AdamW
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from model import CustomBertClassifier
-from utils import create_dataset, create_data_loader
+from utils import create_data_loader, MeldDataset, preparing_dataset_based_on_class
 
 
 RANDOM_SEED = 42
 
-DATA_PATH = "'../../../data/meld.csv'"
+DATA_PATH = "../../../data/meld.csv"
 
 # data
 SAMPLE = 1000
@@ -102,6 +102,9 @@ def evaluate(model: CustomBertClassifier, data_loader: DataLoader, loss_fn, dev:
 
 # data preparation
 df: pd.DataFrame = pd.read_csv(DATA_PATH)
+df: pd.DataFrame = preparing_dataset_based_on_class(df, y_label=Y_LABEL, y_classes=Y_CLASSES)
+
+
 
 # limit dataframe length
 if SAMPLE:
@@ -117,9 +120,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 tokenizer = BertTokenizer.from_pretrained(MODEL_NAME)
 
-train_dataset: TensorDataset = create_dataset(df_train, tokenizer, X_LABEL, Y_LABEL, MAX_LENGTH)
-val_dataset: TensorDataset = create_dataset(df_val, tokenizer, X_LABEL, Y_LABEL, MAX_LENGTH)
-test_dataset: TensorDataset = create_dataset(df_test, tokenizer, X_LABEL, Y_LABEL, MAX_LENGTH)
+train_dataset: Dataset = MeldDataset(df_train, tokenizer, X_LABEL, Y_LABEL, MAX_LENGTH)
+val_dataset: Dataset = MeldDataset(df_val, tokenizer, X_LABEL, Y_LABEL, MAX_LENGTH)
+test_dataset: Dataset = MeldDataset(df_test, tokenizer, X_LABEL, Y_LABEL, MAX_LENGTH)
 
 train_data_loader: DataLoader = create_data_loader(train_dataset, BATCH_SIZE)
 val_data_loader: DataLoader = create_data_loader(val_dataset, BATCH_SIZE)
