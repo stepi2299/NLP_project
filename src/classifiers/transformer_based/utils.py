@@ -69,9 +69,10 @@ def trim(df_row):
     return s.ratio()
 
 
-def process_data(df: pd.DataFrame, y_label: str, y_classes: list, sample: int):
+def process_data(df: pd.DataFrame, y_label: str, y_classes: list, sample: int,
+                 match_threshold: float):
     df = df.dropna()
-    df = df[df.apply(lambda row: trim(row), axis=1) > 0.2]
+    df = df[df.apply(lambda row: trim(row), axis=1) > match_threshold]
     df = prepare_dataset_based_on_class(df, y_label=y_label,
                                         y_classes=y_classes)
     # limit dataframe length

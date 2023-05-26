@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 from transformers import BertTokenizer, BertModel, \
     get_linear_schedule_with_warmup
@@ -17,17 +18,18 @@ RANDOM_SEED = 42
 DATA_PATH = "../../../data/meld.csv"
 
 # data
-SAMPLE = 0
-X_LABEL = 'Utterance'
+SAMPLE = 100
+X_LABEL = 'Transcription'
 Y_LABEL = 'Sentiment'
 Y_CLASSES = ['negative', 'positive', "neutral"]
+TRANSCRIPT_MATCH_THRESHOLD = 0.2
 
 # model
 MODEL_NAME = 'bert-base-uncased'
 DROPOUT_PROB = 0.3
 
 # training
-EPOCHS = 2
+EPOCHS = 1
 BATCH_SIZE = 16
 MAX_LENGTH = 70
 
@@ -38,7 +40,7 @@ def train(model: nn.Module, data_loader: DataLoader, loss_fn, optim,
     model = model.train()
 
     losses = []
-    correct_predictions = 0
+    correct_predictions: int = 0
 
     loop = tqdm(data_loader)
     for idx, d in enumerate(loop):
@@ -77,7 +79,7 @@ def evaluate(model: CustomBertClassifier, data_loader: DataLoader, loss_fn,
     model = model.eval()
 
     losses = []
-    correct_predictions = 0
+    correct_predictions: int = 0
 
     with torch.no_grad():
         loop = tqdm(data_loader)
@@ -92,19 +94,56 @@ def evaluate(model: CustomBertClassifier, data_loader: DataLoader, loss_fn,
                 attention_mask=attention_mask
             )
 
-            _, predictions = torch.max(outputs, dim=1)
-            _, correct = torch.max(targets, dim=1)
-            correct_predictions += sum(torch.eq(predictions, correct))
-
+            _, preds = torch.max(outputs, dim=1)
+            _, correct_preds = torch.max(targets, dim=1)
+            correct_predictions += sum(torch.eq(preds, correct_preds))
             loss = loss_fn(outputs, targets)
             losses.append(loss.item())
 
     return float(correct_predictions) / n_samples, np.mean(losses)
 
 
+def predict(model: CustomBertClassifier, data_loader: DataLoader,
+            dev: torch.device):
+    # set mode
+    model = model.eval()
+
+    x_values = []
+    y_predictions = []
+    y_probabilities = []
+    y_actual = []
+
+    with torch.no_grad():
+        loop = tqdm(data_loader)
+        for idx, d in enumerate(loop):
+            input_ids = d[0].to(dev)
+            attention_mask = d[1].to(dev)
+            targets = d[2].to(dev)
+            x_vals = d[3]
+
+            # get model outputs
+            outputs = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask
+            )
+
+            _, preds = torch.max(outputs, dim=1)
+
+            x_values.extend(x_vals)
+            y_predictions.extend(preds)
+            y_probabilities.extend(outputs)
+            y_actual.extend(targets)
+
+    y_predictions = torch.stack(y_predictions).cpu()
+    y_probabilities = torch.stack(y_probabilities).cpu()
+    y_actual = torch.stack(y_actual).cpu()
+
+    return x_values, y_predictions, y_probabilities, y_actual
+
+
 # data preparation
 df: pd.DataFrame = pd.read_csv(DATA_PATH)
-df = process_data(df, Y_LABEL, Y_CLASSES, SAMPLE)
+df = process_data(df, Y_LABEL, Y_CLASSES, SAMPLE, TRANSCRIPT_MATCH_THRESHOLD)
 
 # split: 80%, 10%, 10%
 df_train, df_test = train_test_split(df, test_size=0.2,
@@ -183,8 +222,8 @@ for epoch_i in range(EPOCHS):
 
     # save model state with best accuracy
     if val_acc > best_acc:
-        torch.save(custom_model.state_dict(), 'best_model.bin')
         best_acc = val_acc
+        torch.save(custom_model.state_dict(), 'best_model.bin')
 
 # check model accuracy on test data
 print('Running test...')
@@ -198,3 +237,11 @@ test_acc, _ = evaluate(
 )
 
 print("  Test accuracy: {0:.2f}".format(test_acc))
+
+x_val, y_pred, y_probs, y_test = predict(
+    model=custom_model,
+    data_loader=test_data_loader,
+    dev=device
+)
+
+print(classification_report(np.argmax(y_test, axis=1), y_pred))
