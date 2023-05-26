@@ -8,10 +8,9 @@ import torch
 from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset
-from tqdm import tqdm
 
-from model import CustomBertClassifier
-from utils import create_data_loader, MeldDataset, process_data
+from base import CustomBertClassifier, MeldDataset, train, evaluate, predict
+from utils import create_data_loader, process_data
 
 RANDOM_SEED = 42
 
@@ -29,117 +28,9 @@ MODEL_NAME = 'bert-base-uncased'
 DROPOUT_PROB = 0.3
 
 # training
-EPOCHS = 1
+EPOCHS = 5
 BATCH_SIZE = 16
 MAX_LENGTH = 70
-
-
-def train(model: nn.Module, data_loader: DataLoader, loss_fn, optim,
-          dev: torch.device, sched, n_samples: int):
-    # set mode
-    model = model.train()
-
-    losses = []
-    correct_predictions: int = 0
-
-    loop = tqdm(data_loader)
-    for idx, d in enumerate(loop):
-        input_ids = d[0].to(dev)
-        attention_mask = d[1].to(dev)
-        targets = d[2].to(dev)
-
-        # get model outputs
-        outputs = model(
-            input_ids=input_ids,
-            attention_mask=attention_mask
-        )
-
-        _, predictions = torch.max(outputs, dim=1)
-        _, correct = torch.max(targets, dim=1)
-        correct_predictions += sum(torch.eq(predictions, correct))
-
-        loss = loss_fn(outputs, targets)
-        losses.append(loss.item())
-
-        # Backward prop
-        loss.backward()
-
-        # Gradient Descent
-        nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        optim.step()
-        sched.step()
-        optim.zero_grad()
-
-    return float(correct_predictions) / n_samples, np.mean(losses)
-
-
-def evaluate(model: CustomBertClassifier, data_loader: DataLoader, loss_fn,
-             dev: torch.device, n_samples: int):
-    # set mode
-    model = model.eval()
-
-    losses = []
-    correct_predictions: int = 0
-
-    with torch.no_grad():
-        loop = tqdm(data_loader)
-        for idx, d in enumerate(loop):
-            input_ids = d[0].to(dev)
-            attention_mask = d[1].to(dev)
-            targets = d[2].to(dev)
-
-            # get model outputs
-            outputs = model(
-                input_ids=input_ids,
-                attention_mask=attention_mask
-            )
-
-            _, preds = torch.max(outputs, dim=1)
-            _, correct_preds = torch.max(targets, dim=1)
-            correct_predictions += sum(torch.eq(preds, correct_preds))
-            loss = loss_fn(outputs, targets)
-            losses.append(loss.item())
-
-    return float(correct_predictions) / n_samples, np.mean(losses)
-
-
-def predict(model: CustomBertClassifier, data_loader: DataLoader,
-            dev: torch.device):
-    # set mode
-    model = model.eval()
-
-    x_values = []
-    y_predictions = []
-    y_probabilities = []
-    y_actual = []
-
-    with torch.no_grad():
-        loop = tqdm(data_loader)
-        for idx, d in enumerate(loop):
-            input_ids = d[0].to(dev)
-            attention_mask = d[1].to(dev)
-            targets = d[2].to(dev)
-            x_vals = d[3]
-
-            # get model outputs
-            outputs = model(
-                input_ids=input_ids,
-                attention_mask=attention_mask
-            )
-
-            _, preds = torch.max(outputs, dim=1)
-
-            x_values.extend(x_vals)
-            y_predictions.extend(preds)
-            y_probabilities.extend(outputs)
-            y_actual.extend(targets)
-
-    y_predictions = torch.stack(y_predictions).cpu()
-    y_probabilities = torch.stack(y_probabilities).cpu()
-    y_actual = torch.stack(y_actual).cpu()
-
-    return x_values, y_predictions, y_probabilities, y_actual
-
 
 # data preparation
 df: pd.DataFrame = pd.read_csv(DATA_PATH)
