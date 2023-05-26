@@ -12,25 +12,7 @@ from torch.utils.data import DataLoader, Dataset
 from base import CustomBertClassifier, MeldDataset, train, evaluate, predict
 from utils import create_data_loader, process_data
 
-RANDOM_SEED = 42
-
-DATA_PATH = "../../../data/meld.csv"
-
-# data
-SAMPLE = 100
-X_LABEL = 'Transcription'
-Y_LABEL = 'Sentiment'
-Y_CLASSES = ['negative', 'positive', "neutral"]
-TRANSCRIPT_MATCH_THRESHOLD = 0.2
-
-# model
-MODEL_NAME = 'bert-base-uncased'
-DROPOUT_PROB = 0.3
-
-# training
-EPOCHS = 5
-BATCH_SIZE = 16
-MAX_LENGTH = 70
+from constants import *
 
 # data preparation
 df: pd.DataFrame = pd.read_csv(DATA_PATH)
