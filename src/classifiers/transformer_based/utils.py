@@ -46,7 +46,7 @@ def create_data_loader(dataset: Dataset, batch_size: int):
     )
 
 
-def preparing_dataset_based_on_class(df: pd.DataFrame, y_label: str, y_classes: list) -> pd.DataFrame:
+def prepare_dataset_based_on_class(df: pd.DataFrame, y_label: str, y_classes: list) -> pd.DataFrame:
     all_possibles_classes = df[y_label].unique()
     if len(all_possibles_classes) == len(y_classes):
         return df
@@ -54,5 +54,5 @@ def preparing_dataset_based_on_class(df: pd.DataFrame, y_label: str, y_classes: 
         print("Minimal number of analyzed class is 2, setting analyzed class into two -> positive and negative")
         y_classes = ['negative', 'positive']
     class_to_delete = set(all_possibles_classes) - set(y_classes)
-    df = df.loc[df['Sentiment'] != list(class_to_delete)[0]].reset_index(drop=True)
+    df = df.loc[df[y_label] != list(class_to_delete)[0]].reset_index(drop=True)
     return df
