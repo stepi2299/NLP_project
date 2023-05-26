@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from transformers import BertTokenizer, BertModel, get_linear_schedule_with_warmup
+from transformers import BertTokenizer, BertModel, \
+    get_linear_schedule_with_warmup
 import torch
 from torch import nn
 from torch.optim import AdamW
@@ -9,16 +10,15 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from model import CustomBertClassifier
-from utils import create_data_loader, MeldDataset, prepare_dataset_based_on_class
-
+from utils import create_data_loader, MeldDataset, process_data
 
 RANDOM_SEED = 42
 
 DATA_PATH = "../../../data/meld.csv"
 
 # data
-SAMPLE = 100
-X_LABEL = 'Transcription'
+SAMPLE = 0
+X_LABEL = 'Utterance'
 Y_LABEL = 'Sentiment'
 Y_CLASSES = ['negative', 'positive', "neutral"]
 
@@ -29,10 +29,11 @@ DROPOUT_PROB = 0.3
 # training
 EPOCHS = 2
 BATCH_SIZE = 16
-MAX_LENGTH = 64
+MAX_LENGTH = 70
 
 
-def train(model: nn.Module, data_loader: DataLoader, loss_fn, optim, dev: torch.device, sched, n_samples: int):
+def train(model: nn.Module, data_loader: DataLoader, loss_fn, optim,
+          dev: torch.device, sched, n_samples: int):
     # set mode
     model = model.train()
 
@@ -70,7 +71,8 @@ def train(model: nn.Module, data_loader: DataLoader, loss_fn, optim, dev: torch.
     return float(correct_predictions) / n_samples, np.mean(losses)
 
 
-def evaluate(model: CustomBertClassifier, data_loader: DataLoader, loss_fn, dev: torch.device, n_samples: int):
+def evaluate(model: CustomBertClassifier, data_loader: DataLoader, loss_fn,
+             dev: torch.device, n_samples: int):
     # set mode
     model = model.eval()
 
@@ -102,16 +104,13 @@ def evaluate(model: CustomBertClassifier, data_loader: DataLoader, loss_fn, dev:
 
 # data preparation
 df: pd.DataFrame = pd.read_csv(DATA_PATH)
-df = df.dropna()
-df: pd.DataFrame = prepare_dataset_based_on_class(df, y_label=Y_LABEL, y_classes=Y_CLASSES)
-
-# limit dataframe length
-if SAMPLE:
-    df = df.head(SAMPLE)
+df = process_data(df, Y_LABEL, Y_CLASSES, SAMPLE)
 
 # split: 80%, 10%, 10%
-df_train, df_test = train_test_split(df, test_size=0.2, random_state=RANDOM_SEED)
-df_val, df_test = train_test_split(df_test, test_size=0.5, random_state=RANDOM_SEED)
+df_train, df_test = train_test_split(df, test_size=0.2,
+                                     random_state=RANDOM_SEED)
+df_val, df_test = train_test_split(df_test, test_size=0.5,
+                                   random_state=RANDOM_SEED)
 
 np.random.seed(RANDOM_SEED)
 torch.manual_seed(RANDOM_SEED)
@@ -119,9 +118,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 tokenizer = BertTokenizer.from_pretrained(MODEL_NAME)
 
-train_dataset: Dataset = MeldDataset(df_train, tokenizer, X_LABEL, Y_LABEL, MAX_LENGTH)
-val_dataset: Dataset = MeldDataset(df_val, tokenizer, X_LABEL, Y_LABEL, MAX_LENGTH)
-test_dataset: Dataset = MeldDataset(df_test, tokenizer, X_LABEL, Y_LABEL, MAX_LENGTH)
+train_dataset: Dataset = MeldDataset(df_train, tokenizer, X_LABEL, Y_LABEL,
+                                     MAX_LENGTH)
+val_dataset: Dataset = MeldDataset(df_val, tokenizer, X_LABEL, Y_LABEL,
+                                   MAX_LENGTH)
+test_dataset: Dataset = MeldDataset(df_test, tokenizer, X_LABEL, Y_LABEL,
+                                    MAX_LENGTH)
 
 train_data_loader: DataLoader = create_data_loader(train_dataset, BATCH_SIZE)
 val_data_loader: DataLoader = create_data_loader(val_dataset, BATCH_SIZE)
@@ -146,7 +148,6 @@ scheduler = get_linear_schedule_with_warmup(
 
 loss_function = nn.CrossEntropyLoss().to(device)
 best_acc: float = 0
-
 
 for epoch_i in range(EPOCHS):
     print("")
