@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from model import CustomBertClassifier
-from utils import create_data_loader, MeldDataset, preparing_dataset_based_on_class
+from utils import create_data_loader, MeldDataset, prepare_dataset_based_on_class
 
 
 RANDOM_SEED = 42
@@ -17,8 +17,8 @@ RANDOM_SEED = 42
 DATA_PATH = "../../../data/meld.csv"
 
 # data
-SAMPLE = 1000
-X_LABEL = 'Utterance'
+SAMPLE = 100
+X_LABEL = 'Transcription'
 Y_LABEL = 'Sentiment'
 Y_CLASSES = ['negative', 'positive', "neutral"]
 
@@ -27,9 +27,9 @@ MODEL_NAME = 'bert-base-uncased'
 DROPOUT_PROB = 0.3
 
 # training
-EPOCHS = 4
+EPOCHS = 2
 BATCH_SIZE = 16
-MAX_LENGTH = 44
+MAX_LENGTH = 64
 
 
 def train(model: nn.Module, data_loader: DataLoader, loss_fn, optim, dev: torch.device, sched, n_samples: int):
@@ -102,9 +102,8 @@ def evaluate(model: CustomBertClassifier, data_loader: DataLoader, loss_fn, dev:
 
 # data preparation
 df: pd.DataFrame = pd.read_csv(DATA_PATH)
-df: pd.DataFrame = preparing_dataset_based_on_class(df, y_label=Y_LABEL, y_classes=Y_CLASSES)
-
-
+df = df.dropna()
+df: pd.DataFrame = prepare_dataset_based_on_class(df, y_label=Y_LABEL, y_classes=Y_CLASSES)
 
 # limit dataframe length
 if SAMPLE:
