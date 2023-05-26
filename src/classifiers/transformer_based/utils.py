@@ -1,44 +1,58 @@
 import numpy as np
 import pandas as pd
 import torch
-from torch.utils.data import TensorDataset, DataLoader, RandomSampler
+from torch.utils.data import DataLoader, Dataset
 from sklearn.preprocessing import OneHotEncoder
 
 
-def create_dataset(df: pd.DataFrame, tokenizer, x_label: str, y_label: str, max_length: int):
-    x_list: np.ndarray = df[x_label].to_numpy()
-    ohe = OneHotEncoder()
-    codes = df[y_label].to_numpy()
-    codes = np.expand_dims(codes, axis=1)
-    y_list: np.ndarray = ohe.fit_transform(codes).toarray()
+class MeldDataset(Dataset):
+    def __init__(self, df: pd.DataFrame, tokenizer, x_label: str, y_label: str, max_length: int, augment=None):
+        self.x_list: np.ndarray = df[x_label].to_numpy()
+        ohe = OneHotEncoder()
+        codes = df[y_label].to_numpy()
+        codes = np.expand_dims(codes, axis=1)
+        self.y_list: np.ndarray = ohe.fit_transform(codes).toarray()
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.augment = augment
 
-    input_ids = []
-    attention_masks = []
+    def __len__(self):
+        return len(self.x_list)
 
-    for x in x_list:
-        encoded_dict: dict = tokenizer.encode_plus(
-            x,
+    def __getitem__(self, item):
+        text = self.x_list[item]
+        if self.augment:
+            text = self.augment(text)
+        encoded_dict: dict = self.tokenizer.encode_plus(
+            text,
             add_special_tokens=True,
-            max_length=max_length,
+            max_length=self.max_length,
             padding='max_length',
             return_token_type_ids=False,
             return_attention_mask=True,
             return_tensors='pt',
         )
-
-        input_ids.append(encoded_dict['input_ids'])
-        attention_masks.append(encoded_dict['attention_mask'])
-
-    input_ids = torch.cat(input_ids, dim=0)
-    attention_masks = torch.cat(attention_masks, dim=0)
-    y_tensor = torch.tensor(y_list)
-
-    return TensorDataset(input_ids, attention_masks, y_tensor)
+        inputs_ids = encoded_dict['input_ids'].reshape(-1)
+        attention_mask = encoded_dict['attention_mask'].reshape(-1)
+        y_tensor = torch.tensor(self.y_list[item])
+        return inputs_ids, attention_mask, y_tensor
 
 
-def create_data_loader(tds: TensorDataset, batch_size: int):
+def create_data_loader(dataset: Dataset, batch_size: int):
     return DataLoader(
-        tds,
-        sampler=RandomSampler(tds),
-        batch_size=batch_size
+        dataset,
+        batch_size=batch_size,
+        shuffle=True
     )
+
+
+def preparing_dataset_based_on_class(df: pd.DataFrame, y_label: str, y_classes: list) -> pd.DataFrame:
+    all_possibles_classes = df[y_label].unique()
+    if len(all_possibles_classes) == len(y_classes):
+        return df
+    elif len(y_classes) < 2:
+        print("Minimal number of analyzed class is 2, setting analyzed class into two -> positive and negative")
+        y_classes = ['negative', 'positive']
+    class_to_delete = set(all_possibles_classes) - set(y_classes)
+    df = df.loc[df['Sentiment'] != list(class_to_delete)[0]].reset_index(drop=True)
+    return df
