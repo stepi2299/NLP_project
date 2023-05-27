@@ -1,14 +1,5 @@
 from difflib import SequenceMatcher
 import pandas as pd
-from torch.utils.data import DataLoader, Dataset
-
-
-def create_data_loader(dataset: Dataset, batch_size: int):
-    return DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=True
-    )
 
 
 def prepare_dataset_based_on_class(df: pd.DataFrame, y_label: str,
@@ -31,14 +22,11 @@ def remove_junk_transcriptions(df_row):
     return s.ratio()
 
 
-def process_data(df: pd.DataFrame, y_label: str, y_classes: list, sample: int,
+def process_data(df: pd.DataFrame, y_label: str, y_classes: list,
                  match_threshold: float):
     df = df.dropna()
     df = df[df.apply(lambda row: remove_junk_transcriptions(row),
                      axis=1) > match_threshold]
     df = prepare_dataset_based_on_class(df, y_label=y_label,
                                         y_classes=y_classes)
-    # limit dataframe length
-    if sample:
-        df = df.head(sample)
     return df

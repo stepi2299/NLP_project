@@ -1,118 +1,28 @@
 import numpy as np
 import pandas as pd
+from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
-from transformers import BertTokenizer, BertModel, get_linear_schedule_with_warmup
+from transformers import BertTokenizer, BertModel, \
+    get_linear_schedule_with_warmup
 import torch
 from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset
-from tqdm import tqdm
 
-from model import CustomBertClassifier
-from utils import create_data_loader, MeldDataset, preparing_dataset_based_on_class
+from base import CustomBertClassifier, MeldDataset, train, evaluate, predict
+from utils import create_data_loader, process_data
 
-
-RANDOM_SEED = 42
-
-DATA_PATH = "../../../data/meld.csv"
-
-# data
-SAMPLE = 1000
-X_LABEL = 'Utterance'
-Y_LABEL = 'Sentiment'
-Y_CLASSES = ['negative', 'positive', "neutral"]
-
-# model
-MODEL_NAME = 'bert-base-uncased'
-DROPOUT_PROB = 0.3
-
-# training
-EPOCHS = 4
-BATCH_SIZE = 16
-MAX_LENGTH = 44
-
-
-def train(model: nn.Module, data_loader: DataLoader, loss_fn, optim, dev: torch.device, sched, n_samples: int):
-    # set mode
-    model = model.train()
-
-    losses = []
-    correct_predictions = 0
-
-    loop = tqdm(data_loader)
-    for idx, d in enumerate(loop):
-        input_ids = d[0].to(dev)
-        attention_mask = d[1].to(dev)
-        targets = d[2].to(dev)
-
-        # get model outputs
-        outputs = model(
-            input_ids=input_ids,
-            attention_mask=attention_mask
-        )
-
-        _, predictions = torch.max(outputs, dim=1)
-        _, correct = torch.max(targets, dim=1)
-        correct_predictions += sum(torch.eq(predictions, correct))
-
-        loss = loss_fn(outputs, targets)
-        losses.append(loss.item())
-
-        # Backward prop
-        loss.backward()
-
-        # Gradient Descent
-        nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        optim.step()
-        sched.step()
-        optim.zero_grad()
-
-    return float(correct_predictions) / n_samples, np.mean(losses)
-
-
-def evaluate(model: CustomBertClassifier, data_loader: DataLoader, loss_fn, dev: torch.device, n_samples: int):
-    # set mode
-    model = model.eval()
-
-    losses = []
-    correct_predictions = 0
-
-    with torch.no_grad():
-        loop = tqdm(data_loader)
-        for idx, d in enumerate(loop):
-            input_ids = d[0].to(dev)
-            attention_mask = d[1].to(dev)
-            targets = d[2].to(dev)
-
-            # get model outputs
-            outputs = model(
-                input_ids=input_ids,
-                attention_mask=attention_mask
-            )
-
-            _, predictions = torch.max(outputs, dim=1)
-            _, correct = torch.max(targets, dim=1)
-            correct_predictions += sum(torch.eq(predictions, correct))
-
-            loss = loss_fn(outputs, targets)
-            losses.append(loss.item())
-
-    return float(correct_predictions) / n_samples, np.mean(losses)
-
+from constants import *
 
 # data preparation
 df: pd.DataFrame = pd.read_csv(DATA_PATH)
-df: pd.DataFrame = preparing_dataset_based_on_class(df, y_label=Y_LABEL, y_classes=Y_CLASSES)
-
-
-
-# limit dataframe length
-if SAMPLE:
-    df = df.head(SAMPLE)
+df = process_data(df, Y_LABEL, Y_CLASSES, SAMPLE, TRANSCRIPT_MATCH_THRESHOLD)
 
 # split: 80%, 10%, 10%
-df_train, df_test = train_test_split(df, test_size=0.2, random_state=RANDOM_SEED)
-df_val, df_test = train_test_split(df_test, test_size=0.5, random_state=RANDOM_SEED)
+df_train, df_test = train_test_split(df, test_size=0.2,
+                                     random_state=RANDOM_SEED)
+df_val, df_test = train_test_split(df_test, test_size=0.5,
+                                   random_state=RANDOM_SEED)
 
 np.random.seed(RANDOM_SEED)
 torch.manual_seed(RANDOM_SEED)
@@ -120,9 +30,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 tokenizer = BertTokenizer.from_pretrained(MODEL_NAME)
 
-train_dataset: Dataset = MeldDataset(df_train, tokenizer, X_LABEL, Y_LABEL, MAX_LENGTH)
-val_dataset: Dataset = MeldDataset(df_val, tokenizer, X_LABEL, Y_LABEL, MAX_LENGTH)
-test_dataset: Dataset = MeldDataset(df_test, tokenizer, X_LABEL, Y_LABEL, MAX_LENGTH)
+train_dataset: Dataset = MeldDataset(df_train, tokenizer, X_LABEL, Y_LABEL,
+                                     MAX_LENGTH)
+val_dataset: Dataset = MeldDataset(df_val, tokenizer, X_LABEL, Y_LABEL,
+                                   MAX_LENGTH)
+test_dataset: Dataset = MeldDataset(df_test, tokenizer, X_LABEL, Y_LABEL,
+                                    MAX_LENGTH)
 
 train_data_loader: DataLoader = create_data_loader(train_dataset, BATCH_SIZE)
 val_data_loader: DataLoader = create_data_loader(val_dataset, BATCH_SIZE)
@@ -147,7 +60,6 @@ scheduler = get_linear_schedule_with_warmup(
 
 loss_function = nn.CrossEntropyLoss().to(device)
 best_acc: float = 0
-
 
 for epoch_i in range(EPOCHS):
     print("")
@@ -183,8 +95,8 @@ for epoch_i in range(EPOCHS):
 
     # save model state with best accuracy
     if val_acc > best_acc:
-        torch.save(custom_model.state_dict(), 'best_model.bin')
         best_acc = val_acc
+        torch.save(custom_model.state_dict(), 'best_model.bin')
 
 # check model accuracy on test data
 print('Running test...')
@@ -198,3 +110,11 @@ test_acc, _ = evaluate(
 )
 
 print("  Test accuracy: {0:.2f}".format(test_acc))
+
+x_val, y_pred, y_probs, y_test = predict(
+    model=custom_model,
+    data_loader=test_data_loader,
+    dev=device
+)
+
+print(classification_report(np.argmax(y_test, axis=1), y_pred))
