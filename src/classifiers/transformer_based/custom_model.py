@@ -179,4 +179,8 @@ class BertClassifierInterface:
 
         return x_values, y_predictions, y_probabilities, y_actual
 
+    def load(self, filename):
+        self.model.load_state_dict(torch.load(f'models/{filename}.bin'))
 
+    def save(self, filename="final_model"):
+        torch.save(self.model.state_dict(), f'models/{filename}.bin')
