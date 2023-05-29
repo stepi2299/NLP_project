@@ -4,13 +4,14 @@ import torch
 from sklearn.model_selection import train_test_split
 from src.classifiers.transformer_based.base import CustomBertClassifier
 from transformers import BertTokenizer, get_linear_schedule_with_warmup
-from constants import RANDOM_SEED
+from src.classifiers.transformer_based.constants import RANDOM_SEED
 from src.classifiers.transformer_based.base import MeldDataset
 from src.classifiers.utils import create_data_loader
 from torch.utils.data import DataLoader
 import torch.nn as nn
 from torch.optim import AdamW
 from tqdm import tqdm
+from matplotlib import pyplot as plt
 
 
 class BertClassifierInterface:
@@ -26,6 +27,7 @@ class BertClassifierInterface:
         self.optimizer = AdamW(self.model.parameters(), lr=lr)
         self.loss_function = nn.CrossEntropyLoss().to(self.device)
         self.mapper = []
+        self.history = []
 
     @staticmethod
     def data_preprocess(df: pd.DataFrame, tokenizer, x_label: str, y_label: str,
@@ -71,12 +73,14 @@ class BertClassifierInterface:
 
             print("  Validation accuracy: {0:.2f}".format(val_acc))
             print("  Validation loss: {0:.2f}".format(val_loss))
+            current_history = [train_acc, train_loss, val_acc, val_loss]
+
+            self.history.append(current_history)
 
             # save model state with best accuracy
             if val_acc > best_acc:
                 best_acc = val_acc
                 torch.save(self.model.state_dict(), 'models/best_model.bin')
-
 
     def _train(self, data_loader: DataLoader, scheduler):
 
@@ -184,3 +188,31 @@ class BertClassifierInterface:
 
     def save(self, filename="final_model"):
         torch.save(self.model.state_dict(), f'models/{filename}.bin')
+
+    def visualize_training(self):
+        hist_time = len(self.history)
+        epochs = list(range(1, hist_time + 1))
+
+        train_acc = [nested[0] for nested in self.history]
+        train_loss = [nested[1] for nested in self.history]
+        val_acc = [nested[2] for nested in self.history]
+        val_loss = [nested[3] for nested in self.history]
+
+        # Plotting these values
+        plt.plot(epochs, train_acc, label='Training Accuracy')
+        plt.plot(epochs, train_loss, label='Training Loss')
+        plt.plot(epochs, val_acc, label='Validation Accuracy')
+        plt.plot(epochs, val_loss, label='Validation Loss')
+
+        # Adding a title
+        plt.title('Bert Model Training')
+
+        # Adding x and y label
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss and Accuracy')
+
+        # Add a legend
+        plt.legend()
+
+        # Displaying the plot
+        plt.show()

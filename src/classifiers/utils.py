@@ -1,9 +1,7 @@
 from difflib import SequenceMatcher
 import pandas as pd
-import numpy as np
 from torch.utils.data import DataLoader, Dataset
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.preprocessing import OneHotEncoder
 
 
 def create_data_loader(dataset: Dataset, batch_size: int):
