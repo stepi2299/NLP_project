@@ -1,6 +1,9 @@
 from difflib import SequenceMatcher
 import pandas as pd
+import numpy as np
 from torch.utils.data import DataLoader, Dataset
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.preprocessing import OneHotEncoder
 
 
 def create_data_loader(dataset: Dataset, batch_size: int):
@@ -31,8 +34,7 @@ def remove_junk_transcriptions(df_row):
     return s.ratio()
 
 
-def process_data(df: pd.DataFrame, y_label: str, y_classes: list, sample: int,
-                 match_threshold: float):
+def process_data(df: pd.DataFrame, y_label: str, y_classes: list, match_threshold: float, sample: int = None):
     df = df.dropna()
     df = df[df.apply(lambda row: remove_junk_transcriptions(row),
                      axis=1) > match_threshold]
@@ -42,3 +44,12 @@ def process_data(df: pd.DataFrame, y_label: str, y_classes: list, sample: int,
     if sample:
         df = df.head(sample)
     return df
+
+
+def create_bag_of_words(df: pd.DataFrame, x_label="Transcription", y_label="Sentiment"):
+    count_vect: CountVectorizer = CountVectorizer()
+    bag_of_words = count_vect.fit_transform(df[x_label])
+    bag_of_words: pd.DataFrame = pd.DataFrame(bag_of_words.toarray(), columns=count_vect.get_feature_names_out())
+    x_set = bag_of_words
+    y_set = df[y_label]
+    return x_set, y_set

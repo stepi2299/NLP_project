@@ -8,7 +8,7 @@ import speech_recognition as sr
 
 from base import CustomBertClassifier, predict, MeldDataset
 from constants import *
-from utils import create_data_loader
+from src.classifiers.utils import create_data_loader
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--state", "-s", type=str, required=True)

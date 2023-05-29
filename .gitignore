@@ -133,3 +133,7 @@ dmypy.json
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# models
+src/classifiers/transformer_based/models
+src/classifiers/naive_bayes/models
