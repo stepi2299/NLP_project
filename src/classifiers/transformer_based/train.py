@@ -14,6 +14,7 @@ df_train, df_test = train_test_split(df, test_size=0.1, random_state=RANDOM_SEED
 
 model = BertClassifierInterface(MODEL_NAME, DROPOUT_PROB, len(Y_CLASSES))
 model.train(df_train, X_LABEL, Y_LABEL, MAX_LENGTH, BATCH_SIZE, EPOCHS)
+model.visualize_training()
 
 
 print('Running test...')
